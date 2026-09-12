@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getBrowserUserId, getSavedNickname, makeRoomCode, saveNickname } from "@/lib/session";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { Match, Movie, Participant, Room, RoomFilters } from "@/lib/types";
+import { SwipeableCard } from "./swipeable-card";
 
 const genres = [
   { id: "", name: "Any genre" },
@@ -374,56 +375,27 @@ export default function MovieMatcher() {
 
         <section className="relative grid min-h-[620px] place-items-center overflow-hidden rounded-lg border border-ink/10 bg-night text-white shadow-deck">
           {room && currentMovie ? (
-            <div className="grid h-full w-full lg:grid-cols-[minmax(280px,44%)_1fr]">
-              <div className="relative min-h-[420px] bg-ink">
-                {posterUrl(currentMovie.posterPath) ? (
-                  <Image
-                    src={posterUrl(currentMovie.posterPath)!}
-                    alt={`${currentMovie.title} poster`}
-                    fill
-                    className="object-cover"
-                    sizes="(min-width: 1024px) 44vw, 100vw"
-                    priority
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center bg-saffron text-ink">
-                    <Clapperboard size={72} aria-hidden />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col justify-between p-5 sm:p-8">
-                <div>
-                  <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/70">
-                    <span>Room {room.code}</span>
-                    <span>{movieIndex + 1} of {room.movie_deck.length}</span>
-                    {likedMatchIds.has(currentMovie.id) ? <span className="text-saffron">Matched</span> : null}
-                  </div>
-                  <h2 className="max-w-2xl text-4xl font-black leading-tight sm:text-5xl">{currentMovie.title}</h2>
-                  <p className="mt-3 text-sm text-white/65">
-                    {currentMovie.releaseDate?.slice(0, 4) ?? "Release year unknown"} · {currentMovie.voteAverage.toFixed(1)} TMDB
-                  </p>
-                  <p className="mt-6 max-w-2xl text-base leading-7 text-white/82">{currentMovie.overview || "No synopsis available."}</p>
-                </div>
-
-                <div className="mt-8 flex items-center justify-center gap-5 sm:justify-start">
-                  <button
-                    className="grid h-16 w-16 place-items-center rounded-full bg-white text-tomato shadow-lg transition hover:scale-105"
-                    onClick={() => void swipe(false)}
-                    aria-label="Skip this movie"
-                  >
-                    <X size={30} aria-hidden />
-                  </button>
-                  <button
-                    className="grid h-20 w-20 place-items-center rounded-full bg-saffron text-night shadow-lg transition hover:scale-105"
-                    onClick={() => void swipe(true)}
-                    aria-label="Like this movie"
-                  >
-                    <Check size={34} aria-hidden />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <>
+              {room.movie_deck
+                .map((movie, index) => {
+                  // Only render the current card and the one immediately behind it
+                  if (index < movieIndex || index > movieIndex + 1) return null;
+                  
+                  return (
+                    <SwipeableCard
+                      key={movie.id}
+                      movie={movie}
+                      room={room}
+                      index={index}
+                      totalMovies={room.movie_deck.length}
+                      isMatched={likedMatchIds.has(movie.id)}
+                      isActive={index === movieIndex}
+                      zIndex={room.movie_deck.length - index}
+                      onSwipe={(liked) => void swipe(liked)}
+                    />
+                  );
+                })}
+            </>
           ) : (
             <div className="max-w-lg px-6 text-center">
               <Clapperboard className="mx-auto mb-5 text-saffron" size={58} aria-hidden />
