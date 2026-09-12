@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useMotionValue, useTransform, useAnimation, PanInfo } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
 import Image from "next/image";
 import { Check, Clapperboard, X } from "lucide-react";
 import type { Movie, Room } from "@/lib/types";
@@ -31,7 +31,6 @@ export function SwipeableCard({
   onSwipe,
 }: SwipeableCardProps) {
   const x = useMotionValue(0);
-  const controls = useAnimation();
 
   // Map the horizontal drag (x) to rotation
   const rotate = useTransform(x, [-300, 300], [-15, 15]);
@@ -45,22 +44,22 @@ export function SwipeableCard({
     
     if (info.offset.x > threshold) {
       // Swiped right (Like)
-      await controls.start({ x: 800, transition: { duration: 0.3 } });
+      await animate(x, 800, { duration: 0.3 });
       onSwipe(true);
     } else if (info.offset.x < -threshold) {
       // Swiped left (Nope)
-      await controls.start({ x: -800, transition: { duration: 0.3 } });
+      await animate(x, -800, { duration: 0.3 });
       onSwipe(false);
     } else {
       // Didn't drag far enough, spring back
-      controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 20 } });
+      animate(x, 0, { type: "spring", stiffness: 300, damping: 20 });
     }
   };
 
   const handleButtonSwipe = async (liked: boolean) => {
     if (!isActive) return;
     const targetX = liked ? 800 : -800;
-    await controls.start({ x: targetX, transition: { duration: 0.3 } });
+    await animate(x, targetX, { duration: 0.3 });
     onSwipe(liked);
   };
 
@@ -68,7 +67,6 @@ export function SwipeableCard({
     <motion.div
       className="absolute inset-0 bg-night grid h-full w-full lg:grid-cols-[minmax(280px,44%)_1fr]"
       style={{ x, rotate, zIndex }}
-      animate={controls}
       drag={isActive ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
