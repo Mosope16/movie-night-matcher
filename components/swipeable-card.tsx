@@ -137,7 +137,7 @@ export function SwipeableCard({
           <p className="mt-1 text-xs text-white/65 lg:mt-3 lg:text-sm">
             {movie.releaseDate?.slice(0, 4) ?? "Release year unknown"} · {movie.voteAverage.toFixed(1)} TMDB
           </p>
-          <p className="mt-3 hidden max-w-2xl text-sm leading-6 text-white/82 sm:block lg:mt-6 lg:text-base lg:leading-7">
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/82 lg:mt-6 lg:text-base lg:leading-7">
             {movie.overview || "No synopsis available."}
           </p>
         </div>
