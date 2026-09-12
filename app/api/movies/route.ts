@@ -38,9 +38,10 @@ export async function GET(request: Request) {
     tmdbParams.set("primary_release_year", year);
   }
 
+  tmdbParams.set("api_key", token);
+
   const response = await fetch(`https://api.themoviedb.org/3/discover/movie?${tmdbParams.toString()}`, {
     headers: {
-      Authorization: `Bearer ${token}`,
       accept: "application/json"
     },
     next: {
@@ -49,7 +50,12 @@ export async function GET(request: Request) {
   });
 
   if (!response.ok) {
-    return NextResponse.json({ error: "Could not load movies from TMDB." }, { status: response.status });
+    const errorText = await response.text().catch(() => "Could not read error body");
+    console.error("TMDB API Error:", response.status, response.statusText, errorText);
+    return NextResponse.json(
+      { error: `Could not load movies from TMDB. Status: ${response.status}. Details: ${errorText}` },
+      { status: response.status }
+    );
   }
 
   const payload = (await response.json()) as { results?: TmdbMovie[] };
