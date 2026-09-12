@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Clapperboard, Copy, Loader2, LogIn, Plus, RefreshCw, Users, X } from "lucide-react";
+import { Check, Clapperboard, Copy, Loader2, LogIn, Plus, RefreshCw, Users, X, ChevronDown } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getBrowserUserId, getSavedNickname, makeRoomCode, saveNickname } from "@/lib/session";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -23,6 +23,9 @@ function posterUrl(path: string | null) {
   return path ? `https://image.tmdb.org/t/p/w500${path}` : null;
 }
 
+// Mobile tab type — only used on small screens
+type MobileTab = "lobby" | "swipe" | "room";
+
 export default function MovieMatcher() {
   const [userId, setUserId] = useState("");
   const [nickname, setNickname] = useState("");
@@ -35,6 +38,7 @@ export default function MovieMatcher() {
   const [lastMatch, setLastMatch] = useState<Match | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState("");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("lobby");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -44,6 +48,13 @@ export default function MovieMatcher() {
 
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  // Automatically switch to swipe tab when room is created/joined on mobile
+  useEffect(() => {
+    if (room) {
+      setMobileTab("swipe");
+    }
+  }, [room?.id]);
 
   useEffect(() => {
     if (!room || !supabase) {
@@ -286,213 +297,296 @@ export default function MovieMatcher() {
     setMatches([]);
     setMovieIndex(0);
     setLastMatch(null);
+    setMobileTab("lobby");
   }
 
-  return (
-    <main className="min-h-screen px-4 py-5 text-ink sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-40px)] max-w-7xl gap-5 lg:grid-cols-[360px_minmax(0,1fr)_320px]">
-        <aside className="rounded-lg border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-md bg-tomato text-white">
-              <Clapperboard size={24} aria-hidden />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Movie Night Matcher</h1>
-              <p className="text-sm text-ink/65">Realtime picks for indecisive groups.</p>
-            </div>
-          </div>
+  // ─── Shared panels ────────────────────────────────────────────────────────
 
-          <label className="mb-4 block text-sm font-medium">
-            Nickname
+  const lobbyPanel = (
+    <div>
+      <div className="mb-6 flex items-center gap-3">
+        <div className="grid h-11 w-11 place-items-center rounded-md bg-tomato text-white">
+          <Clapperboard size={24} aria-hidden />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold">Movie Night Matcher</h1>
+          <p className="text-sm text-ink/65">Realtime picks for indecisive groups.</p>
+        </div>
+      </div>
+
+      <label className="mb-4 block text-sm font-medium">
+        Nickname
+        <input
+          className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 outline-none ring-tomato/30 focus:ring-4"
+          value={nickname}
+          onChange={(event) => setNickname(event.target.value)}
+          placeholder="Ada"
+        />
+      </label>
+
+      <form className="space-y-3 border-t border-ink/10 pt-4" onSubmit={createRoom}>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-sm font-medium">
+            Genre
+            <select
+              className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 outline-none ring-tomato/30 focus:ring-4"
+              value={filters.genre}
+              onChange={(event) => setFilters((current) => ({ ...current, genre: event.target.value }))}
+            >
+              {genres.map((genre) => (
+                <option key={genre.id} value={genre.id}>
+                  {genre.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium">
+            Year
             <input
               className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 outline-none ring-tomato/30 focus:ring-4"
-              value={nickname}
-              onChange={(event) => setNickname(event.target.value)}
-              placeholder="Ada"
+              value={filters.year}
+              onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
+              placeholder="2026"
+              inputMode="numeric"
             />
           </label>
+        </div>
+        <button
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-night px-4 py-2.5 font-semibold text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isBusy}
+          type="submit"
+        >
+          {isBusy ? <Loader2 className="animate-spin" size={18} aria-hidden /> : <Plus size={18} aria-hidden />}
+          Create room
+        </button>
+      </form>
 
-          <form className="space-y-3 border-t border-ink/10 pt-4" onSubmit={createRoom}>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-sm font-medium">
-                Genre
-                <select
-                  className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 outline-none ring-tomato/30 focus:ring-4"
-                  value={filters.genre}
-                  onChange={(event) => setFilters((current) => ({ ...current, genre: event.target.value }))}
-                >
-                  {genres.map((genre) => (
-                    <option key={genre.id} value={genre.id}>
-                      {genre.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium">
-                Year
-                <input
-                  className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 outline-none ring-tomato/30 focus:ring-4"
-                  value={filters.year}
-                  onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
-                  placeholder="2026"
-                  inputMode="numeric"
-                />
-              </label>
-            </div>
-            <button
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-night px-4 py-2.5 font-semibold text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isBusy}
-              type="submit"
-            >
-              {isBusy ? <Loader2 className="animate-spin" size={18} aria-hidden /> : <Plus size={18} aria-hidden />}
-              Create room
-            </button>
-          </form>
+      <form className="mt-5 space-y-3 border-t border-ink/10 pt-4" onSubmit={joinRoom}>
+        <label className="text-sm font-medium">
+          Room code
+          <input
+            className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 uppercase outline-none ring-tomato/30 focus:ring-4"
+            value={joinCode}
+            onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+            placeholder="A7K2Q"
+            maxLength={5}
+          />
+        </label>
+        <button
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-mint px-4 py-2.5 font-semibold text-night transition hover:bg-mint/80 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isBusy}
+          type="submit"
+        >
+          <LogIn size={18} aria-hidden />
+          Join room
+        </button>
+      </form>
 
-          <form className="mt-5 space-y-3 border-t border-ink/10 pt-4" onSubmit={joinRoom}>
-            <label className="text-sm font-medium">
-              Room code
-              <input
-                className="mt-2 w-full rounded-md border border-ink/15 bg-white px-3 py-2 uppercase outline-none ring-tomato/30 focus:ring-4"
-                value={joinCode}
-                onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                placeholder="A7K2Q"
-                maxLength={5}
+      {error ? <p className="mt-4 rounded-md bg-tomato/10 px-3 py-2 text-sm text-tomato">{error}</p> : null}
+    </div>
+  );
+
+  const roomPanel = (
+    <div>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold">Room</h2>
+          <p className="text-sm text-ink/60">{room ? room.code : "No active room"}</p>
+        </div>
+        {room ? (
+          <button className="rounded-md border border-ink/15 p-2 hover:bg-ink/5" onClick={leaveRoom} aria-label="Leave room">
+            <RefreshCw size={18} aria-hidden />
+          </button>
+        ) : null}
+      </div>
+
+      {room ? (
+        <button
+          className="mb-5 flex w-full items-center justify-center gap-2 rounded-md border border-ink/15 px-3 py-2 text-sm font-semibold hover:bg-ink/5"
+          onClick={() => void navigator.clipboard.writeText(room.code)}
+        >
+          <Copy size={16} aria-hidden />
+          Copy code
+        </button>
+      ) : null}
+
+      <section className="border-t border-ink/10 py-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Users size={18} aria-hidden />
+          <h3 className="font-bold">People</h3>
+        </div>
+        <div className="space-y-2">
+          {participants.length ? (
+            participants.map((participant) => (
+              <div key={participant.id} className="flex items-center justify-between rounded-md bg-ink/5 px-3 py-2 text-sm">
+                <span>{participant.nickname}</span>
+                {participant.user_id === room?.host_id ? <span className="font-semibold text-tomato">Host</span> : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-ink/60">Waiting for room members.</p>
+          )}
+        </div>
+      </section>
+
+      <section className="border-t border-ink/10 py-4">
+        <h3 className="mb-3 font-bold">Matches</h3>
+        <div className="space-y-2">
+          {matches.length ? (
+            matches.map((match) => (
+              <button
+                key={match.id}
+                className="flex w-full items-center gap-3 rounded-md bg-saffron/25 px-3 py-2 text-left text-sm font-semibold"
+                onClick={() => setLastMatch(match)}
+              >
+                <Check size={16} aria-hidden />
+                {match.movie_title}
+              </button>
+            ))
+          ) : (
+            <p className="text-sm text-ink/60">No group favorite yet.</p>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+
+  const swipeSection = (
+    <section className="relative flex min-h-[calc(100dvh-120px)] flex-col overflow-hidden rounded-lg border border-ink/10 bg-night text-white shadow-deck lg:min-h-[620px]">
+      {room && currentMovie ? (
+        <>
+          {room.movie_deck.map((movie, index) => {
+            if (index < movieIndex || index > movieIndex + 1) return null;
+            return (
+              <SwipeableCard
+                key={movie.id}
+                movie={movie}
+                room={room}
+                index={index}
+                totalMovies={room.movie_deck.length}
+                isMatched={likedMatchIds.has(movie.id)}
+                isActive={index === movieIndex}
+                zIndex={room.movie_deck.length - index}
+                onSwipe={(liked) => void swipe(liked)}
               />
-            </label>
-            <button
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-mint px-4 py-2.5 font-semibold text-night transition hover:bg-mint/80 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isBusy}
-              type="submit"
-            >
-              <LogIn size={18} aria-hidden />
-              Join room
-            </button>
-          </form>
+            );
+          })}
+        </>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <Clapperboard className="mb-5 text-saffron" size={58} aria-hidden />
+          <h2 className="text-4xl font-black">Start with a room.</h2>
+          <p className="mt-4 text-white/70">
+            Create a room, share the code, and everyone swipes through the same movie deck from their own screen.
+          </p>
+          {/* On mobile, prompt them to go to the Lobby tab to set up */}
+          <button
+            className="mt-6 flex items-center gap-2 rounded-md bg-tomato px-5 py-2.5 font-semibold text-white lg:hidden"
+            onClick={() => setMobileTab("lobby")}
+          >
+            <Plus size={18} aria-hidden />
+            Create or join a room
+          </button>
+        </div>
+      )}
 
-          {error ? <p className="mt-4 rounded-md bg-tomato/10 px-3 py-2 text-sm text-tomato">{error}</p> : null}
+      {lastMatch ? (
+        <div className="absolute inset-0 grid place-items-center bg-night/88 p-6 backdrop-blur">
+          <div className="w-full max-w-sm rounded-lg bg-white p-5 text-center text-ink shadow-deck">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-tomato">Match</p>
+            {posterUrl(lastMatch.poster_path) ? (
+              <Image
+                src={posterUrl(lastMatch.poster_path)!}
+                alt={`${lastMatch.movie_title} poster`}
+                width={220}
+                height={330}
+                className="mx-auto mt-4 rounded-md object-cover"
+              />
+            ) : null}
+            <h3 className="mt-4 text-3xl font-black">{lastMatch.movie_title}</h3>
+            <button
+              className="mt-5 rounded-md bg-night px-4 py-2 font-semibold text-white"
+              onClick={() => setLastMatch(null)}
+            >
+              Keep swiping
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  // ─── Mobile bottom tab bar ─────────────────────────────────────────────────
+
+  const mobileTabs: { id: MobileTab; label: string; badge?: number }[] = [
+    { id: "lobby", label: "Lobby" },
+    { id: "swipe", label: "Swipe", badge: room ? room.movie_deck.length - movieIndex : undefined },
+    { id: "room", label: "Room", badge: matches.length || undefined }
+  ];
+
+  return (
+    <main className="min-h-screen bg-stone-50 text-ink">
+      {/* ── Desktop layout (lg+): three fixed columns ── */}
+      <div className="mx-auto hidden max-w-7xl gap-5 px-6 py-5 lg:grid lg:min-h-screen lg:grid-cols-[360px_minmax(0,1fr)_320px]">
+        <aside className="overflow-y-auto rounded-lg border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
+          {lobbyPanel}
         </aside>
 
-        <section className="relative grid min-h-[620px] place-items-center overflow-hidden rounded-lg border border-ink/10 bg-night text-white shadow-deck">
-          {room && currentMovie ? (
-            <>
-              {room.movie_deck
-                .map((movie, index) => {
-                  // Only render the current card and the one immediately behind it
-                  if (index < movieIndex || index > movieIndex + 1) return null;
-                  
-                  return (
-                    <SwipeableCard
-                      key={movie.id}
-                      movie={movie}
-                      room={room}
-                      index={index}
-                      totalMovies={room.movie_deck.length}
-                      isMatched={likedMatchIds.has(movie.id)}
-                      isActive={index === movieIndex}
-                      zIndex={room.movie_deck.length - index}
-                      onSwipe={(liked) => void swipe(liked)}
-                    />
-                  );
-                })}
-            </>
-          ) : (
-            <div className="max-w-lg px-6 text-center">
-              <Clapperboard className="mx-auto mb-5 text-saffron" size={58} aria-hidden />
-              <h2 className="text-4xl font-black">Start with a room.</h2>
-              <p className="mt-4 text-white/70">
-                Create a room, share the code, and everyone swipes through the same movie deck from their own screen.
-              </p>
-            </div>
-          )}
+        {swipeSection}
 
-          {lastMatch ? (
-            <div className="absolute inset-0 grid place-items-center bg-night/88 p-6 backdrop-blur">
-              <div className="w-full max-w-sm rounded-lg bg-white p-5 text-center text-ink shadow-deck">
-                <p className="text-sm font-bold uppercase tracking-[0.18em] text-tomato">Match</p>
-                {posterUrl(lastMatch.poster_path) ? (
-                  <Image
-                    src={posterUrl(lastMatch.poster_path)!}
-                    alt={`${lastMatch.movie_title} poster`}
-                    width={220}
-                    height={330}
-                    className="mx-auto mt-4 rounded-md object-cover"
-                  />
-                ) : null}
-                <h3 className="mt-4 text-3xl font-black">{lastMatch.movie_title}</h3>
-                <button
-                  className="mt-5 rounded-md bg-night px-4 py-2 font-semibold text-white"
-                  onClick={() => setLastMatch(null)}
-                >
-                  Keep swiping
-                </button>
+        <aside className="overflow-y-auto rounded-lg border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
+          {roomPanel}
+        </aside>
+      </div>
+
+      {/* ── Mobile layout (below lg): tab-based ── */}
+      <div className="flex min-h-screen flex-col lg:hidden">
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto">
+          {mobileTab === "lobby" && (
+            <div className="p-4">
+              <div className="rounded-lg border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
+                {lobbyPanel}
               </div>
             </div>
-          ) : null}
-        </section>
-
-        <aside className="rounded-lg border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold">Room</h2>
-              <p className="text-sm text-ink/60">{room ? room.code : "No active room"}</p>
+          )}
+          {mobileTab === "swipe" && (
+            <div className="p-4 pb-2">
+              {swipeSection}
+              {/* Desktop keyboard hint, hidden on mobile */}
             </div>
-            {room ? (
-              <button className="rounded-md border border-ink/15 p-2 hover:bg-ink/5" onClick={leaveRoom} aria-label="Leave room">
-                <RefreshCw size={18} aria-hidden />
-              </button>
-            ) : null}
-          </div>
+          )}
+          {mobileTab === "room" && (
+            <div className="p-4">
+              <div className="rounded-lg border border-ink/10 bg-white/80 p-4 shadow-sm backdrop-blur">
+                {roomPanel}
+              </div>
+            </div>
+          )}
+        </div>
 
-          {room ? (
+        {/* Bottom tab bar */}
+        <nav className="sticky bottom-0 z-50 flex border-t border-ink/10 bg-white/95 shadow-lg backdrop-blur">
+          {mobileTabs.map((tab) => (
             <button
-              className="mb-5 flex w-full items-center justify-center gap-2 rounded-md border border-ink/15 px-3 py-2 text-sm font-semibold hover:bg-ink/5"
-              onClick={() => void navigator.clipboard.writeText(room.code)}
+              key={tab.id}
+              className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-3 text-xs font-semibold transition ${
+                mobileTab === tab.id ? "text-tomato" : "text-ink/50 hover:text-ink"
+              }`}
+              onClick={() => setMobileTab(tab.id)}
             >
-              <Copy size={16} aria-hidden />
-              Copy code
+              {tab.label}
+              {tab.badge !== undefined && tab.badge > 0 ? (
+                <span className="absolute right-1/4 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-tomato px-1 text-[10px] text-white">
+                  {tab.badge > 99 ? "99+" : tab.badge}
+                </span>
+              ) : null}
+              {mobileTab === tab.id ? (
+                <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-tomato" />
+              ) : null}
             </button>
-          ) : null}
-
-          <section className="border-t border-ink/10 py-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Users size={18} aria-hidden />
-              <h3 className="font-bold">People</h3>
-            </div>
-            <div className="space-y-2">
-              {participants.length ? (
-                participants.map((participant) => (
-                  <div key={participant.id} className="flex items-center justify-between rounded-md bg-ink/5 px-3 py-2 text-sm">
-                    <span>{participant.nickname}</span>
-                    {participant.user_id === room?.host_id ? <span className="font-semibold text-tomato">Host</span> : null}
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-ink/60">Waiting for room members.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="border-t border-ink/10 py-4">
-            <h3 className="mb-3 font-bold">Matches</h3>
-            <div className="space-y-2">
-              {matches.length ? (
-                matches.map((match) => (
-                  <button
-                    key={match.id}
-                    className="flex w-full items-center gap-3 rounded-md bg-saffron/25 px-3 py-2 text-left text-sm font-semibold"
-                    onClick={() => setLastMatch(match)}
-                  >
-                    <Check size={16} aria-hidden />
-                    {match.movie_title}
-                  </button>
-                ))
-              ) : (
-                <p className="text-sm text-ink/60">No group favorite yet.</p>
-              )}
-            </div>
-          </section>
-        </aside>
+          ))}
+        </nav>
       </div>
     </main>
   );
