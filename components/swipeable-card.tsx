@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
 import Image from "next/image";
 import { Check, Clapperboard, X } from "lucide-react";
@@ -62,6 +63,23 @@ export function SwipeableCard({
     await animate(x, targetX, { duration: 0.3 });
     onSwipe(liked);
   };
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        void handleButtonSwipe(false);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        void handleButtonSwipe(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isActive, x, onSwipe]);
 
   return (
     <motion.div
