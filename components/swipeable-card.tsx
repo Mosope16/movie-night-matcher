@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
 import { motion, useMotionValue, useTransform, animate, PanInfo } from "framer-motion";
+import { useEffect } from "react";
 import Image from "next/image";
 import { Check, Clapperboard, X } from "lucide-react";
 import type { Movie, Room } from "@/lib/types";
 
 function posterUrl(path: string | null) {
-  return path ? `https://image.tmdb.org/t/p/w500${path}` : null;
+  return path ? `https://image.tmdb.org/t/p/w780${path}` : null;
 }
 
 interface SwipeableCardProps {
@@ -16,7 +16,7 @@ interface SwipeableCardProps {
   index: number;
   totalMovies: number;
   isMatched: boolean;
-  isActive: boolean; // Only the top card is active/draggable
+  isActive: boolean;
   zIndex: number;
   onSwipe: (liked: boolean) => void;
 }
@@ -32,58 +32,44 @@ export function SwipeableCard({
   onSwipe,
 }: SwipeableCardProps) {
   const x = useMotionValue(0);
+  const rotate = useTransform(x, [-300, 300], [-12, 12]);
+  const nopeOpacity = useTransform(x, [-120, -20], [1, 0]);
+  const likeOpacity = useTransform(x, [20, 120], [0, 1]);
 
-  // Map the horizontal drag (x) to rotation
-  const rotate = useTransform(x, [-300, 300], [-15, 15]);
-
-  // Color overlays for visual feedback during swipe
-  const nopeOpacity = useTransform(x, [-100, -20], [0.8, 0]);
-  const likeOpacity = useTransform(x, [20, 100], [0, 0.8]);
-
-  const handleDragEnd = async (event: any, info: PanInfo) => {
+  const handleDragEnd = async (_: unknown, info: PanInfo) => {
     const threshold = 120;
-    
     if (info.offset.x > threshold) {
-      // Swiped right (Like)
-      await animate(x, 800, { duration: 0.3 });
+      await animate(x, 900, { duration: 0.3 });
       onSwipe(true);
     } else if (info.offset.x < -threshold) {
-      // Swiped left (Nope)
-      await animate(x, -800, { duration: 0.3 });
+      await animate(x, -900, { duration: 0.3 });
       onSwipe(false);
     } else {
-      // Didn't drag far enough, spring back
       animate(x, 0, { type: "spring", stiffness: 300, damping: 20 });
     }
   };
 
   const handleButtonSwipe = async (liked: boolean) => {
     if (!isActive) return;
-    const targetX = liked ? 800 : -800;
-    await animate(x, targetX, { duration: 0.3 });
+    await animate(x, liked ? 900 : -900, { duration: 0.3 });
     onSwipe(liked);
   };
 
   useEffect(() => {
     if (!isActive) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        void handleButtonSwipe(false);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        void handleButtonSwipe(true);
-      }
+      if (e.key === "ArrowLeft") { e.preventDefault(); void handleButtonSwipe(false); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); void handleButtonSwipe(true); }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isActive, x, onSwipe]);
 
+  const poster = posterUrl(movie.posterPath);
+
   return (
     <motion.div
-      className="absolute inset-0 bg-night flex h-full w-full flex-col lg:grid lg:grid-cols-[minmax(280px,44%)_1fr]"
+      className="absolute inset-0 select-none overflow-hidden rounded-lg"
       style={{ x, rotate, zIndex }}
       drag={isActive ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
@@ -94,73 +80,85 @@ export function SwipeableCard({
       animate={isActive ? { scale: 1, opacity: 1 } : { scale: 0.95, opacity: 1 }}
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
     >
-      <div className="relative h-[55vw] min-h-[240px] flex-shrink-0 bg-ink lg:h-full">
-        {posterUrl(movie.posterPath) ? (
-          <Image
-            src={posterUrl(movie.posterPath)!}
-            alt={`${movie.title} poster`}
-            fill
-            className="object-cover pointer-events-none"
-            sizes="(min-width: 1024px) 44vw, 100vw"
-            priority={isActive}
-          />
-        ) : (
-          <div className="grid h-full place-items-center bg-saffron text-ink pointer-events-none">
-            <Clapperboard size={72} aria-hidden />
-          </div>
-        )}
-        
-        {/* Swipe Overlays */}
-        <motion.div 
-          className="absolute inset-0 bg-tomato pointer-events-none flex items-center justify-center mix-blend-overlay"
-          style={{ opacity: nopeOpacity }}
-        >
-          <X size={120} className="text-white opacity-80" />
-        </motion.div>
-        
-        <motion.div 
-          className="absolute inset-0 bg-saffron pointer-events-none flex items-center justify-center mix-blend-overlay"
-          style={{ opacity: likeOpacity }}
-        >
-          <Check size={120} className="text-white opacity-80" />
-        </motion.div>
+      {/* Full-bleed poster */}
+      {poster ? (
+        <Image
+          src={poster}
+          alt={`${movie.title} poster`}
+          fill
+          className="object-cover object-center pointer-events-none"
+          sizes="(min-width: 1024px) 60vw, 100vw"
+          priority={isActive}
+        />
+      ) : (
+        <div className="absolute inset-0 grid place-items-center bg-ink">
+          <Clapperboard size={80} className="text-white/30" aria-hidden />
+        </div>
+      )}
+
+      {/* Dark gradient overlay — bottom two-thirds */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none" />
+
+      {/* Top metadata bar */}
+      <div className="absolute top-0 inset-x-0 flex items-center justify-between px-4 pt-4 pb-2 text-xs text-white/70 pointer-events-none">
+        <span className="rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">Room {room.code}</span>
+        <span className="rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
+          {index + 1} / {totalMovies}
+          {isMatched ? " · ✓ Matched" : ""}
+        </span>
       </div>
 
-      <div className="flex flex-1 flex-col justify-between overflow-y-auto p-4 sm:p-5 lg:p-8 cursor-default pointer-events-none">
-        <div>
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-white/70 lg:mb-5 lg:text-sm">
-            <span>Room {room.code}</span>
-            <span>{index + 1} of {totalMovies}</span>
-            {isMatched ? <span className="text-saffron">Matched ✓</span> : null}
-          </div>
-          <h2 className="text-2xl font-black leading-tight sm:text-3xl lg:text-5xl">{movie.title}</h2>
-          <p className="mt-1 text-xs text-white/65 lg:mt-3 lg:text-sm">
-            {movie.releaseDate?.slice(0, 4) ?? "Release year unknown"} · {movie.voteAverage.toFixed(1)} TMDB
-          </p>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/82 lg:mt-6 lg:text-base lg:leading-7">
-            {movie.overview || "No synopsis available."}
-          </p>
-        </div>
+      {/* NOPE label */}
+      <motion.div
+        className="absolute left-6 top-16 rotate-[-20deg] rounded-lg border-4 border-tomato px-3 py-1 text-2xl font-black tracking-widest text-tomato pointer-events-none"
+        style={{ opacity: nopeOpacity }}
+      >
+        NOPE
+      </motion.div>
 
-        <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start pointer-events-auto lg:mt-8 lg:gap-5">
+      {/* LIKE label */}
+      <motion.div
+        className="absolute right-6 top-16 rotate-[20deg] rounded-lg border-4 border-saffron px-3 py-1 text-2xl font-black tracking-widest text-saffron pointer-events-none"
+        style={{ opacity: likeOpacity }}
+      >
+        LIKE
+      </motion.div>
+
+      {/* Movie info — pinned to bottom */}
+      <div className="absolute bottom-0 inset-x-0 px-5 pb-6 pt-16 pointer-events-none">
+        <h2 className="text-3xl font-black text-white leading-tight drop-shadow-lg sm:text-4xl lg:text-5xl">
+          {movie.title}
+        </h2>
+        <p className="mt-1.5 text-sm text-white/60">
+          {movie.releaseDate?.slice(0, 4) ?? "Unknown year"} · ⭐ {movie.voteAverage.toFixed(1)} TMDB
+        </p>
+        <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-white/80 sm:line-clamp-4 lg:text-base">
+          {movie.overview || "No synopsis available."}
+        </p>
+
+        {/* Action buttons */}
+        <div className="mt-5 flex items-center gap-4 pointer-events-auto">
           <button
-            className="grid h-14 w-14 place-items-center rounded-full bg-white text-tomato shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed lg:h-16 lg:w-16"
+            className="grid h-14 w-14 place-items-center rounded-full bg-white/10 border-2 border-tomato text-tomato backdrop-blur-sm shadow-lg transition hover:bg-tomato hover:text-white hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => void handleButtonSwipe(false)}
             aria-label="Skip this movie"
             disabled={!isActive}
           >
-            <X size={26} aria-hidden className="lg:hidden" />
-            <X size={30} aria-hidden className="hidden lg:block" />
+            <X size={26} aria-hidden />
           </button>
+
           <button
-            className="grid h-16 w-16 place-items-center rounded-full bg-saffron text-night shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed lg:h-20 lg:w-20"
+            className="grid h-16 w-16 place-items-center rounded-full bg-white/10 border-2 border-saffron text-saffron backdrop-blur-sm shadow-lg transition hover:bg-saffron hover:text-night hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => void handleButtonSwipe(true)}
             aria-label="Like this movie"
             disabled={!isActive}
           >
-            <Check size={28} aria-hidden className="lg:hidden" />
-            <Check size={34} aria-hidden className="hidden lg:block" />
+            <Check size={30} aria-hidden />
           </button>
+
+          <span className="ml-auto hidden text-xs text-white/40 lg:block">
+            ← → keyboard shortcuts
+          </span>
         </div>
       </div>
     </motion.div>
